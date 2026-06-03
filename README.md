@@ -162,6 +162,27 @@ Each successful run saves a new Langfuse prompt version and appends a row to the
 repo-level `leaderboard.csv`, including the participant, prompt version,
 overall score, per-score columns, and Langfuse dataset run URL.
 
+## Hosted MCP Tool Experiment Template
+
+Use `templates/mcp-tool-experiment` when the thing being optimized is a hosted
+MCP server/tool schema rather than a system prompt. This is meant for servers
+running in Rancher/Kubernetes or any other deployed environment.
+
+```powershell
+Copy-Item -Recurse templates\mcp-tool-experiment experiments\my-mcp-tool
+cd experiments\my-mcp-tool
+notepad mcp_tool_config.json
+python sync_tool_schema.py --fetch-schema
+bash autoresearch.sh
+```
+
+`mcp_tool_config.json` captures the deployed MCP endpoint, deployment metadata
+such as cluster/namespace/workload, optional auth headers, and either a
+`schema_url` or `schema_file` for the tool JSON schema. The sync script pulls
+that JSON into `tool_candidate.json`, which Pi can then optimize. Successful
+benchmarks save attempted tool specs as Langfuse prompt versions and append
+hosted-MCP rows to `leaderboard.csv`.
+
 ## Test
 
 ```powershell

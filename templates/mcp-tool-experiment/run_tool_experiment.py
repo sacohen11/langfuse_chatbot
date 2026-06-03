@@ -22,12 +22,11 @@ HERE = Path(__file__).resolve().parent
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run a configurable Langfuse prompt experiment.")
-    parser.add_argument("--config", default="experiment_config.json", help="Experiment config JSON file.")
-    parser.add_argument("--prompt-file", default=None, help="Candidate system prompt file.")
+    parser = argparse.ArgumentParser(description="Evaluate a hosted MCP tool spec with Langfuse dataset runs.")
+    parser.add_argument("--config", default="mcp_tool_config.json", help="MCP tool config JSON.")
+    parser.add_argument("--spec-file", default=None, help="Candidate MCP tool spec JSON file.")
     parser.add_argument("--publish", action="store_true", help="Publish a Langfuse dataset run.")
-    parser.add_argument("--pull-prompt", action="store_true", help="Pull the configured Langfuse prompt into the candidate file and exit.")
-    parser.add_argument("--validate-config", action="store_true", help="Validate config shape and exit without network calls.")
+    parser.add_argument("--validate-config", action="store_true", help="Validate config shape and exit.")
     parser.add_argument("--run-name", default=None, help="Optional exact Langfuse dataset run name.")
     parser.add_argument("--max-items", type=int, default=None, help="Limit dataset items for smoke tests.")
     parser.add_argument("--result-file", default=None, help="Optional JSON file to write the result.")
@@ -39,32 +38,21 @@ def main() -> None:
     load_dotenv(repo_root / ".env")
     load_dotenv(HERE / ".env")
 
-    config_path = Path(args.config)
-    if not config_path.is_absolute():
-        config_path = HERE / config_path
+    config_path = _resolve_path(args.config)
     config = _load_config(config_path)
 
     if args.validate_config:
         print(json.dumps({"ok": True, "scores": [score["name"] for score in config["scores"]]}, indent=2))
         return
 
+    spec_path = _resolve_path(args.spec_file or config.get("candidate_tool_spec_file", "tool_candidate.json"))
+    spec = json.loads(spec_path.read_text(encoding="utf-8-sig"))
+    spec_text = json.dumps(spec, indent=2, ensure_ascii=False)
+    tools = _tools(spec)
+    if not tools:
+        raise ValueError(f"{spec_path} does not contain any tools.")
+
     langfuse = _langfuse_client()
-
-    prompt_path = Path(args.prompt_file or config.get("candidate_prompt_file", "prompt_candidate.txt"))
-    if not prompt_path.is_absolute():
-        prompt_path = HERE / prompt_path
-
-    if args.pull_prompt:
-        prompt_text = _fetch_prompt_text(langfuse, config)
-        prompt_path.write_text(prompt_text + "\n", encoding="utf-8")
-        print(json.dumps({"prompt_file": str(prompt_path), "prompt_name": config["prompt_name"]}, indent=2))
-        return
-
-    system_prompt = prompt_path.read_text(encoding="utf-8").strip()
-    if not system_prompt or system_prompt.startswith("Replace this file"):
-        system_prompt = _fetch_prompt_text(langfuse, config)
-        prompt_path.write_text(system_prompt + "\n", encoding="utf-8")
-
     dataset = langfuse.get_dataset(config["dataset_name"])
     items = dataset.items[: args.max_items] if args.max_items else dataset.items
     if not items:
@@ -73,19 +61,38 @@ def main() -> None:
     openai = OpenAI()
 
     def task(*, item, **_: Any) -> str:
-        user_message = _render_template(config.get("user_template", "{{" + config["input_key"] + "}}"), item.input)
         response = openai.chat.completions.create(
             model=config["task_model"],
-            temperature=float(config.get("temperature", 0)),
-            max_completion_tokens=int(config.get("max_completion_tokens", 280)),
+            temperature=0,
+            max_completion_tokens=350,
+            response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are testing hosted MCP tool specifications. Given a user request, decide whether "
+                        "the agent should call one of these tools. Return JSON only with: should_call_tool "
+                        "(boolean), tool_name (string or null), arguments (object), expected_result_usage "
+                        "(string), and rationale (string)."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "mcp_server": config["server"],
+                            "tool_spec": spec,
+                            "user_request": item.input["user_request"],
+                            "available_context": item.input.get("available_context", {}),
+                        },
+                        ensure_ascii=False,
+                    ),
+                },
             ],
         )
-        return response.choices[0].message.content or ""
+        return response.choices[0].message.content or "{}"
 
-    evaluators = [_make_evaluator(openai, config, score_config) for score_config in config["scores"]]
+    evaluators = [_make_evaluator(openai, config, score_config, spec) for score_config in config["scores"]]
     score_names = [score["name"] for score in config["scores"]]
 
     if args.publish:
@@ -93,7 +100,7 @@ def main() -> None:
         result = langfuse.run_experiment(
             name=config["experiment_name"],
             run_name=run_name,
-            description=f"Prompt experiment for {config['prompt_name']}",
+            description=f"Hosted MCP tool spec evaluation for {config['server']['name']}",
             data=items,
             task=task,
             evaluators=evaluators,
@@ -102,9 +109,11 @@ def main() -> None:
             metadata={
                 "participant_name": config["participant_name"],
                 "prompt_name": config["prompt_name"],
+                "server_name": config["server"]["name"],
+                "mcp_url": config["server"]["mcp_url"],
+                "tool_names": [tool["name"] for tool in tools],
                 "task_model": config["task_model"],
                 "judge_model": config["judge_model"],
-                "config_file": config_path.name,
             },
         )
         scores = _scores_from_experiment_result(result, score_names)
@@ -117,7 +126,10 @@ def main() -> None:
         "participant_name": config["participant_name"],
         "experiment_name": config["experiment_name"],
         "prompt_name": config["prompt_name"],
-        "prompt_file": str(prompt_path),
+        "server_name": config["server"]["name"],
+        "mcp_url": config["server"]["mcp_url"],
+        "tool_names": [tool["name"] for tool in tools],
+        "spec_file": str(spec_path),
         "dataset_name": config["dataset_name"],
         "item_count": len(items),
         "overall_score": scores["overall_score"],
@@ -129,8 +141,9 @@ def main() -> None:
         attempt = _save_attempt_prompt_version(
             langfuse=langfuse,
             config=config,
-            system_prompt=system_prompt,
-            prompt_path=prompt_path,
+            spec=spec,
+            spec_text=spec_text,
+            spec_path=spec_path,
             scores=scores,
             dataset_run_url=dataset_run_url,
             item_count=len(items),
@@ -148,29 +161,27 @@ def main() -> None:
     print(f"METRIC overall_score={scores['overall_score']:.4f}")
     for name, value in scores["dimension_scores"].items():
         print(f"METRIC {name}={value:.4f}")
-
     if args.result_file:
         Path(args.result_file).write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def _load_config(path: Path) -> dict[str, Any]:
     if not path.exists():
-        example = path.with_name("experiment_config.example.json")
-        raise FileNotFoundError(f"Missing {path.name}. Copy {example.name} to {path.name} and edit it.")
+        raise FileNotFoundError(f"Missing {path}")
     config = json.loads(path.read_text(encoding="utf-8-sig"))
-    required = ["participant_name", "experiment_name", "prompt_name", "dataset_name", "task_model", "judge_model", "input_key", "scores"]
+    required = ["participant_name", "experiment_name", "prompt_name", "dataset_name", "task_model", "judge_model", "server", "scores"]
     missing = [key for key in required if not config.get(key)]
     if missing:
         raise ValueError(f"Missing required config keys: {', '.join(missing)}")
+    server = config["server"]
+    for key in ["name", "mcp_url"]:
+        if not server.get(key):
+            raise ValueError(f"server.{key} is required")
     if not isinstance(config["scores"], list) or not config["scores"]:
         raise ValueError("Config must include at least one score.")
     for score in config["scores"]:
         if not score.get("name") or not score.get("type"):
             raise ValueError("Each score must include name and type.")
-        if score["type"] == "llm_judge" and not score.get("rubric"):
-            raise ValueError(f"llm_judge score {score['name']!r} requires rubric.")
-        if score["type"] == "managed_langfuse" and not score.get("evaluator_name"):
-            raise ValueError(f"managed_langfuse score {score['name']!r} requires evaluator_name.")
     return config
 
 
@@ -182,50 +193,37 @@ def _langfuse_client() -> Langfuse:
     )
 
 
-def _fetch_prompt_text(langfuse: Langfuse, config: dict[str, Any]) -> str:
-    prompt = langfuse.get_prompt(
-        config["prompt_name"],
-        type=config.get("prompt_type", "chat"),
-        label=config.get("prompt_label"),
-        version=config.get("prompt_version"),
-        cache_ttl_seconds=0,
-    )
-    raw_prompt = getattr(prompt, "prompt", "")
-    if isinstance(raw_prompt, str):
-        return raw_prompt.strip()
-    for message in raw_prompt:
-        if message.get("role") == "system":
-            return str(message.get("content", "")).strip()
-    return json.dumps(raw_prompt, ensure_ascii=False)
-
-
-def _make_evaluator(openai: OpenAI, config: dict[str, Any], score_config: dict[str, Any]):
-    score_type = score_config["type"]
-    if score_type == "llm_judge":
-        return _make_llm_judge_evaluator(openai, config["judge_model"], score_config["name"], score_config["rubric"])
-    if score_type == "managed_langfuse":
+def _make_evaluator(openai: OpenAI, config: dict[str, Any], score_config: dict[str, Any], spec: dict[str, Any]):
+    if score_config["type"] == "llm_judge":
+        return _make_llm_judge_evaluator(openai, config["judge_model"], score_config, spec)
+    if score_config["type"] == "managed_langfuse":
         evaluator = _get_managed_langfuse_evaluator(score_config["evaluator_name"])
         return _make_managed_langfuse_evaluator(openai, config["judge_model"], score_config, evaluator)
-    raise ValueError(f"Unsupported score type: {score_type}")
+    raise ValueError(f"Unsupported score type: {score_config['type']}")
 
 
-def _make_llm_judge_evaluator(openai: OpenAI, judge_model: str, name: str, rubric: str):
+def _make_llm_judge_evaluator(openai: OpenAI, judge_model: str, score_config: dict[str, Any], spec: dict[str, Any]):
+    name = score_config["name"]
+    rubric = score_config["rubric"]
+
     def evaluator(*, input: dict[str, Any], output: str, expected_output: dict[str, Any], **_: Any) -> Evaluation:
-        judge_prompt = {
+        judge_payload = {
+            "dimension": name,
             "rubric": rubric,
-            "input": input,
-            "assistant_output": output,
+            "tool_spec": spec,
+            "scenario": input,
+            "model_tool_decision": output,
             "expected_output": expected_output,
             "instructions": "Return JSON with score from 0 to 1 and a short rationale. Be strict but fair.",
         }
         response = openai.chat.completions.create(
             model=judge_model,
             temperature=0,
-            max_completion_tokens=220,
+            max_completion_tokens=260,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "You are a precise evaluator for assistant outputs."},
-                {"role": "user", "content": json.dumps(judge_prompt, ensure_ascii=False)},
+                {"role": "system", "content": "You are a precise evaluator for MCP tool descriptions and JSON schemas."},
+                {"role": "user", "content": json.dumps(judge_payload, ensure_ascii=False)},
             ],
         )
         raw = response.choices[0].message.content or "{}"
@@ -242,14 +240,13 @@ def _make_llm_judge_evaluator(openai: OpenAI, judge_model: str, name: str, rubri
 def _make_managed_langfuse_evaluator(openai: OpenAI, judge_model: str, score_config: dict[str, Any], evaluator_config: dict[str, Any]):
     name = score_config["name"]
     prompt_template = evaluator_config["prompt"]
-    variable_map = score_config.get("variable_map", {})
     evaluator_name = evaluator_config.get("name", score_config["evaluator_name"])
     evaluator_version = evaluator_config.get("version")
 
     def evaluator(*, input: dict[str, Any], output: str, expected_output: dict[str, Any], **_: Any) -> Evaluation:
         values = {
             variable: _resolve_mapping(source, input=input, output=output, expected_output=expected_output)
-            for variable, source in variable_map.items()
+            for variable, source in score_config.get("variable_map", {}).items()
         }
         for variable in evaluator_config.get("variables", []):
             values.setdefault(variable, _default_variable_value(variable, input=input, output=output, expected_output=expected_output))
@@ -262,10 +259,7 @@ def _make_managed_langfuse_evaluator(openai: OpenAI, judge_model: str, score_con
             max_completion_tokens=220,
             response_format={"type": "json_object"},
             messages=[
-                {
-                    "role": "system",
-                    "content": "Run the provided Langfuse managed evaluator. Return JSON only with score and reasoning.",
-                },
+                {"role": "system", "content": "Run the provided Langfuse managed evaluator. Return JSON only with score and reasoning."},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -334,29 +328,32 @@ def _save_attempt_prompt_version(
     *,
     langfuse: Langfuse,
     config: dict[str, Any],
-    system_prompt: str,
-    prompt_path: Path,
+    spec: dict[str, Any],
+    spec_text: str,
+    spec_path: Path,
     scores: dict[str, Any],
     dataset_run_url: str | None,
     item_count: int,
     max_items: int | None,
 ) -> dict[str, Any]:
     attempt_id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
+    prompt_hash = hashlib.sha256(spec_text.encode("utf-8")).hexdigest()[:12]
+    tools = _tools(spec)
     prompt = langfuse.create_prompt(
         name=config["prompt_name"],
-        type="chat",
-        prompt=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": config.get("user_template", "{{" + config["input_key"] + "}}")},
-        ],
+        type="text",
+        prompt=spec_text,
         labels=[],
-        tags=list(config.get("tags", [])),
+        tags=["mcp-tool-spec", "hosted-mcp", "autoresearch-attempt"],
         config={
+            "artifact_type": "hosted_mcp_tool_spec",
             "participant_name": config["participant_name"],
             "experiment_name": config["experiment_name"],
             "attempt_id": attempt_id,
             "prompt_hash": prompt_hash,
+            "server": config["server"],
+            "tool_names": [tool["name"] for tool in tools],
+            "tool_spec": spec,
             "overall_score": scores["overall_score"],
             "dimension_scores": scores["dimension_scores"],
             "item_count": item_count,
@@ -365,7 +362,7 @@ def _save_attempt_prompt_version(
             "dataset_run_url": dataset_run_url,
             "task_model": config["task_model"],
             "judge_model": config["judge_model"],
-            "source": prompt_path.name,
+            "source": spec_path.name,
         },
         commit_message=f"{config['experiment_name']} attempt {attempt_id}: overall_score={scores['overall_score']:.4f}",
     )
@@ -376,7 +373,10 @@ def _save_attempt_prompt_version(
         "prompt_name": config["prompt_name"],
         "prompt_version": getattr(prompt, "version", None),
         "prompt_hash": prompt_hash,
-        "prompt_text": system_prompt,
+        "server_name": config["server"]["name"],
+        "mcp_url": config["server"]["mcp_url"],
+        "tool_names": [tool["name"] for tool in tools],
+        "tool_spec": spec,
         "overall_score": scores["overall_score"],
         "dimension_scores": scores["dimension_scores"],
         "item_count": item_count,
@@ -387,7 +387,7 @@ def _save_attempt_prompt_version(
 
 
 def _append_attempt_log(config: dict[str, Any], attempt: dict[str, Any]) -> None:
-    path = HERE / config.get("attempt_log_file", "prompt_attempts.jsonl")
+    path = HERE / config.get("attempt_log_file", "tool_attempts.jsonl")
     with path.open("a", encoding="utf-8") as file:
         file.write(json.dumps(attempt, ensure_ascii=False) + "\n")
 
@@ -401,6 +401,7 @@ def _update_leaderboard(repo_root: Path, config: dict[str, Any], output: dict[st
         "timestamp_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "participant_name": config["participant_name"],
         "experiment_name": config["experiment_name"],
+        "artifact_type": "hosted_mcp_tool_spec",
         "prompt_name": config["prompt_name"],
         "prompt_version": attempt.get("prompt_version", ""),
         "overall_score": f"{float(output['overall_score']):.6f}",
@@ -410,11 +411,13 @@ def _update_leaderboard(repo_root: Path, config: dict[str, Any], output: dict[st
         "item_count": str(output["item_count"]),
         "dataset_run_url": output.get("dataset_run_url") or "",
         "prompt_hash": attempt.get("prompt_hash", ""),
+        "server_name": config["server"]["name"],
+        "mcp_url": config["server"]["mcp_url"],
+        "tool_names": ",".join(output.get("tool_names", [])),
         "scores_json": json.dumps(output["dimension_scores"], sort_keys=True),
     }
     for name, value in output["dimension_scores"].items():
         row[f"score:{name}"] = f"{float(value):.6f}"
-
     rows: list[dict[str, str]] = []
     columns: list[str] = []
     if path.exists() and path.stat().st_size > 0:
@@ -426,44 +429,22 @@ def _update_leaderboard(repo_root: Path, config: dict[str, Any], output: dict[st
         if column not in columns:
             columns.append(column)
     rows.append(row)
-
-    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=columns)
         writer.writeheader()
-        for existing in rows:
-            writer.writerow(existing)
+        writer.writerows(rows)
     return path
 
 
-def _repo_root() -> Path:
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=HERE,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return Path(result.stdout.strip())
-    except Exception:
-        return HERE.parent.parent
-
-
-def _render_template(template: str, values: dict[str, Any]) -> str:
-    rendered = template
-    for key, value in values.items():
-        rendered = rendered.replace("{{" + key + "}}", _stringify(value))
-    return rendered
+def _tools(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    if "tools" in spec:
+        return list(spec["tools"])
+    return [spec]
 
 
 def _resolve_mapping(source: str, *, input: dict[str, Any], output: str, expected_output: dict[str, Any]) -> Any:
     if source == "output":
         return output
-    if source == "input":
-        return input
-    if source == "expected_output":
-        return expected_output
     if source.startswith("input."):
         return _dig(input, source.removeprefix("input."))
     if source.startswith("expected_output."):
@@ -475,11 +456,9 @@ def _default_variable_value(variable: str, *, input: dict[str, Any], output: str
     if variable in {"generation", "answer", "output"}:
         return output
     if variable in {"query", "question", "input"}:
-        return _first_string(input) or input
+        return str(input.get("user_request", input))
     if variable in {"ground_truth", "expected_output"}:
         return expected_output
-    if variable == "context":
-        return input.get("context") or expected_output.get("context") or ""
     return ""
 
 
@@ -493,13 +472,6 @@ def _dig(value: dict[str, Any], path: str) -> Any:
     return current
 
 
-def _first_string(value: dict[str, Any]) -> str:
-    for item in value.values():
-        if isinstance(item, str):
-            return item
-    return ""
-
-
 def _stringify(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -508,6 +480,19 @@ def _stringify(value: Any) -> str:
 
 def _clamp_score(value: Any) -> float:
     return max(0.0, min(1.0, float(value)))
+
+
+def _resolve_path(path: str) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else HERE / candidate
+
+
+def _repo_root() -> Path:
+    try:
+        result = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=HERE, check=True, capture_output=True, text=True)
+        return Path(result.stdout.strip())
+    except Exception:
+        return HERE.parent.parent
 
 
 if __name__ == "__main__":
