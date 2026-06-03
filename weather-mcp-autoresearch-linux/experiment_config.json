@@ -1,0 +1,11 @@
+{
+  "prompt_name": "weather-mcp-autoresearch/weather-server-tools",
+  "dataset_name": "weather-mcp-autoresearch/weather-tool-eval",
+  "task_model": "gpt-4.1-mini",
+  "judge_model": "gpt-4.1-mini",
+  "candidate_tool_spec_file": "weather_tool_candidate.json",
+  "seed_tool_spec_file": "seed_weather_tool_spec.json",
+  "dataset_items_file": "dataset_items.json",
+  "expected_dataset_items": 5,
+  "attempt_log_file": "autoresearch.prompt_attempts.jsonl"
+}

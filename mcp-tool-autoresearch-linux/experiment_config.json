@@ -1,0 +1,12 @@
+{
+  "prompt_name": "mcp-tool-autoresearch/support-ticket-lookup-tool",
+  "dataset_name": "mcp-tool-autoresearch/support-ticket-tool-eval",
+  "task_model": "gpt-4.1-mini",
+  "judge_model": "gpt-4.1-mini",
+  "candidate_tool_spec_file": "tool_candidate.json",
+  "seed_tool_spec_file": "seed_tool_spec.json",
+  "dataset_items_file": "dataset_items.json",
+  "expected_dataset_items": 5,
+  "attempt_log_file": "autoresearch.prompt_attempts.jsonl"
+}
+

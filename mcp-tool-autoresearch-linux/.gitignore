@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.py[cod]
+.autoresearch-last-output.txt
+.autoresearch-last-result.json
+.autoresearch-last-metrics.txt
+autoresearch.jsonl
+autoresearch.prompt_attempts.jsonl
+

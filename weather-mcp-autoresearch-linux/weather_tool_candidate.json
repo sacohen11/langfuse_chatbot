@@ -1,0 +1,93 @@
+{
+  "server": {
+    "name": "weather",
+    "description": "Weather tools for US forecasts and alerts."
+  },
+  "tools": [
+    {
+      "name": "get-alerts",
+      "description": "Get weather alerts for a U.S. state only. Use only for active alerts and avoid forecasts or educational questions, unsupported locations, or repeated calls in rapid succession.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Two-letter US state code (uppercase), e.g., CA, NY, TX.",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "required": ["state"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "alerts": {
+            "type": "array",
+            "description": "Active alerts with event, area, severity, headline, description, and instructions.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event": { "type": "string", "description": "Alert event name." },
+                "area": { "type": "string", "description": "Geographical area affected." },
+                "severity": { "type": "string", "description": "Alert severity level." },
+                "headline": { "type": "string", "description": "Alert headline summary." },
+                "description": { "type": "string", "description": "Detailed alert information." },
+                "instructions": { "type": "string", "description": "Safety or action instructions." }
+              },
+              "required": ["event", "area", "severity", "headline", "description", "instructions"]
+            }
+          }
+        },
+        "required": ["alerts"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get-forecast",
+      "description": "Get weather forecast for a U.S. location by latitude and longitude. Use only for forecast requests and avoid alerts, educational questions, unsupported locations, or repeated calls in rapid succession.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "minimum": 24.396308,
+            "maximum": 49.384358,
+            "description": "Latitude of the location in the U.S. (24.4 to 49.4 degrees)."
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -125.0,
+            "maximum": -66.93457,
+            "description": "Longitude of the location in the U.S. (-125.0 to -66.9 degrees)."
+          }
+        },
+        "required": ["latitude", "longitude"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "forecast": {
+            "type": "array",
+            "description": "Forecast periods with period names, temperature and unit, wind, short and detailed forecasts.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "periodName": { "type": "string", "description": "Name of the forecast period." },
+                "temperature": { "type": "number", "description": "Temperature during the period." },
+                "temperatureUnit": { "type": "string", "description": "Unit of temperature (F or C)." },
+                "windSpeed": { "type": "string", "description": "Wind speed and direction." },
+                "shortForecast": { "type": "string", "description": "Short forecast summary." },
+                "detailedForecast": { "type": "string", "description": "Detailed forecast information." }
+              },
+              "required": ["periodName", "temperature", "temperatureUnit", "windSpeed", "shortForecast", "detailedForecast"]
+            }
+          }
+        },
+        "required": ["forecast"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

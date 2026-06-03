@@ -1,0 +1,36 @@
+[
+  {
+    "id": "weather_then_packing",
+    "description": "The agent should call weather once, remember the destination, and use that context on follow-up.",
+    "tags": ["weather", "memory", "tools"],
+    "turns": [
+      {
+        "user": "I am going to Boston tomorrow. Check the weather and tell me the practical risk.",
+        "answer_contains": ["Boston"],
+        "required_tools": ["get_weather"]
+      },
+      {
+        "user": "Given that, should I pack an umbrella?",
+        "answer_contains": ["umbrella"],
+        "forbidden_tools": ["get_weather"]
+      }
+    ]
+  },
+  {
+    "id": "calculation_then_recall",
+    "description": "The agent should use a calculator tool, then preserve the computed value across turns.",
+    "tags": ["math", "memory", "tools"],
+    "turns": [
+      {
+        "user": "Use the calculator to multiply 17 by 23.",
+        "answer_contains": ["391"],
+        "required_tools": ["calculator"]
+      },
+      {
+        "user": "Now add 9 to that previous result.",
+        "answer_contains": ["400"],
+        "required_tools": ["calculator"]
+      }
+    ]
+  }
+]

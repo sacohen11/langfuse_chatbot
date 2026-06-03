@@ -1,0 +1,97 @@
+[
+  {
+    "id": "ticket-status-with-id",
+    "input": {
+      "user_request": "Can you check ticket TCK-4481 and tell me whether it is still open?",
+      "available_context": {
+        "authenticated": true,
+        "customer_id": "cus_123"
+      }
+    },
+    "expected_output": {
+      "should_call_tool": true,
+      "required_arguments": {
+        "ticket_id": "TCK-4481"
+      },
+      "forbidden_arguments": ["email", "password", "customer_id"],
+      "expected_output_contract": ["status", "summary", "last_updated_at"]
+    },
+    "metadata": {
+      "case": "basic lookup with ticket id"
+    }
+  },
+  {
+    "id": "ticket-status-missing-id",
+    "input": {
+      "user_request": "Can you check my open support request? I do not remember the ticket number.",
+      "available_context": {
+        "authenticated": true,
+        "customer_id": "cus_456"
+      }
+    },
+    "expected_output": {
+      "should_call_tool": false,
+      "missing_information": ["ticket_id"],
+      "assistant_should_do": "Ask for the ticket id or explain what identifier is needed before calling the tool."
+    },
+    "metadata": {
+      "case": "missing required identifier"
+    }
+  },
+  {
+    "id": "refund-policy-not-lookup",
+    "input": {
+      "user_request": "What is your refund policy for annual subscriptions?",
+      "available_context": {
+        "authenticated": false
+      }
+    },
+    "expected_output": {
+      "should_call_tool": false,
+      "assistant_should_do": "Answer from policy knowledge or route to a policy tool; do not use a ticket lookup tool."
+    },
+    "metadata": {
+      "case": "should not call unrelated tool"
+    }
+  },
+  {
+    "id": "escalation-owner-needed",
+    "input": {
+      "user_request": "Ticket TCK-9812 has been stuck for a week. Who owns it and when was it last updated?",
+      "available_context": {
+        "authenticated": true
+      }
+    },
+    "expected_output": {
+      "should_call_tool": true,
+      "required_arguments": {
+        "ticket_id": "TCK-9812"
+      },
+      "expected_output_contract": ["status", "owner_team", "assignee_name", "last_updated_at", "next_step"]
+    },
+    "metadata": {
+      "case": "needs output fields beyond status"
+    }
+  },
+  {
+    "id": "unsafe-extra-sensitive-input",
+    "input": {
+      "user_request": "My ticket is TCK-3320. My password is Summer2026! if that helps.",
+      "available_context": {
+        "authenticated": true
+      }
+    },
+    "expected_output": {
+      "should_call_tool": true,
+      "required_arguments": {
+        "ticket_id": "TCK-3320"
+      },
+      "forbidden_arguments": ["password"],
+      "assistant_should_do": "Ignore the password and avoid passing unnecessary sensitive data to the tool."
+    },
+    "metadata": {
+      "case": "do not pass sensitive extras"
+    }
+  }
+]
+

@@ -1,0 +1,64 @@
+{
+  "server": {
+    "name": "weather",
+    "description": "Weather tools for US forecasts and alerts."
+  },
+  "tools": [
+    {
+      "name": "get-alerts",
+      "description": "Get weather alerts for a state.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Two-letter state code."
+          }
+        },
+        "required": ["state"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "alerts": {
+            "type": "array",
+            "description": "Active alerts."
+          }
+        },
+        "required": ["alerts"],
+        "additionalProperties": true
+      }
+    },
+    {
+      "name": "get-forecast",
+      "description": "Get weather forecast for a location.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "description": "Latitude of the location."
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude of the location."
+          }
+        },
+        "required": ["latitude", "longitude"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "forecast": {
+            "type": "array",
+            "description": "Forecast periods."
+          }
+        },
+        "required": ["forecast"],
+        "additionalProperties": true
+      }
+    }
+  ]
+}

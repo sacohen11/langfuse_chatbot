@@ -1,0 +1,77 @@
+[
+  {
+    "id": "sam-c-system-prompt-001",
+    "input": {
+      "customer_message": "I was charged twice for my subscription this morning. Please fix it."
+    },
+    "expected_output": {
+      "ideal_behavior": "Acknowledge frustration, apologize, say the billing team can investigate duplicate charges, ask for account email or invoice ID if missing, and avoid promising an immediate refund before verification.",
+      "must_include": ["duplicate charge investigation", "account email or invoice ID", "no guaranteed refund before verification"],
+      "risk": "billing"
+    },
+    "metadata": {
+      "topic": "billing",
+      "difficulty": "medium"
+    }
+  },
+  {
+    "id": "sam-c-system-prompt-002",
+    "input": {
+      "customer_message": "Your app deleted all my saved notes. This is urgent. I need them back for a client meeting in an hour."
+    },
+    "expected_output": {
+      "ideal_behavior": "Treat as urgent, express empathy, give immediate safe steps such as checking trash/sync status/backups, ask for account and device details, and escalate to support without claiming recovery is guaranteed.",
+      "must_include": ["urgent escalation", "safe recovery steps", "no guaranteed recovery"],
+      "risk": "data_loss"
+    },
+    "metadata": {
+      "topic": "data loss",
+      "difficulty": "hard"
+    }
+  },
+  {
+    "id": "sam-c-system-prompt-003",
+    "input": {
+      "customer_message": "How do I change the email address on my account?"
+    },
+    "expected_output": {
+      "ideal_behavior": "Provide clear step-by-step account settings guidance, mention email verification, and invite the user to share what step is failing if the option is unavailable.",
+      "must_include": ["account settings", "email verification", "ask what step is failing if blocked"],
+      "risk": "how_to"
+    },
+    "metadata": {
+      "topic": "account management",
+      "difficulty": "easy"
+    }
+  },
+  {
+    "id": "sam-c-system-prompt-004",
+    "input": {
+      "customer_message": "I can't log in and password reset emails never arrive."
+    },
+    "expected_output": {
+      "ideal_behavior": "Offer concise troubleshooting steps: check spam, confirm email, wait briefly, try resend, mention possible SSO/social login, and ask for account email or error details for escalation.",
+      "must_include": ["spam or junk folder", "confirm email address", "SSO or social login possibility", "escalation details"],
+      "risk": "login"
+    },
+    "metadata": {
+      "topic": "authentication",
+      "difficulty": "medium"
+    }
+  },
+  {
+    "id": "sam-c-system-prompt-005",
+    "input": {
+      "customer_message": "Cancel my plan now. I don't want to be charged again."
+    },
+    "expected_output": {
+      "ideal_behavior": "Be direct and respectful, explain where to cancel or that support can help, ask for account identifier if acting on the request, mention confirmation once cancellation is complete, and avoid retention pressure.",
+      "must_include": ["cancellation path or support help", "account identifier if needed", "confirmation after completion", "no retention pressure"],
+      "risk": "cancellation"
+    },
+    "metadata": {
+      "topic": "cancellation",
+      "difficulty": "medium"
+    }
+  }
+]

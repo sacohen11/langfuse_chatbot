@@ -1,0 +1,42 @@
+llm:
+  model: ${CHATBOT_MODEL:-openai:gpt-4.1-mini}
+  temperature: ${CHATBOT_TEMPERATURE:-0}
+
+langfuse:
+  enabled: true
+  base_url: ${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}
+  public_key: ${LANGFUSE_PUBLIC_KEY:-}
+  secret_key: ${LANGFUSE_SECRET_KEY:-}
+
+autoresearch:
+  workspace_dir: ${AUTORESEARCH_WORKSPACE_DIR:-autoresearch}
+  candidate_count: ${AUTORESEARCH_CANDIDATES:-3}
+
+agent:
+  system_prompt: >
+    You are a concise assistant. Use tools when they improve correctness,
+    keep track of the conversation, and explain tool-derived answers plainly.
+
+mcp:
+  # Set true if multiple servers expose tools with the same names. LangChain MCP
+  # adapters will emit names like "server_tool" instead of "tool".
+  tool_name_prefix: false
+  servers:
+    # External or custom server over TLS. Your server only needs a standard MCP
+    # streamable HTTP endpoint; use https:// plus headers for auth.
+    my_ssl_server:
+      enabled: false
+      transport: http
+      url: https://localhost:8443/mcp
+      headers:
+        Authorization: Bearer ${MY_MCP_TOKEN:-}
+
+    # Example stdio server. Enable after installing/running the server command.
+    filesystem:
+      enabled: false
+      transport: stdio
+      command: npx
+      args:
+        - -y
+        - "@modelcontextprotocol/server-filesystem"
+        - .

@@ -1,0 +1,11 @@
+{
+  "prompt_name": "sam-c-system-prompt/support-triage-system",
+  "dataset_name": "sam-c-system-prompt/support-triage-eval",
+  "task_model": "gpt-5.4",
+  "judge_model": "gpt-4.1-mini",
+  "candidate_prompt_file": "prompt_candidate.txt",
+  "seed_prompt_file": "seed_prompt.txt",
+  "dataset_items_file": "dataset_items.json",
+  "expected_dataset_items": 5,
+  "attempt_log_file": "autoresearch.prompt_attempts.jsonl"
+}
