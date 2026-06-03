@@ -140,6 +140,28 @@ workflow progresses. By default the optimized version gets the `autoresearch`
 label; repeat `--output-label` or use `--output-name` if you want a separate
 prompt.
 
+## Shared Prompt Experiment Template
+
+Use `templates/prompt-experiment` when someone wants to bring their own Langfuse
+prompt, dataset, and scoring rubric into an autoresearch loop.
+
+```powershell
+New-Item -ItemType Directory experiments -Force
+Copy-Item -Recurse templates\prompt-experiment experiments\my-experiment
+cd experiments\my-experiment
+notepad experiment_config.json
+python run_experiment.py --pull-prompt
+bash autoresearch.sh
+```
+
+The template config asks for the participant name, experiment name, Langfuse
+prompt name, dataset name, model choices, and score dimensions. Scores can be
+custom LLM judge rubrics or managed Langfuse evaluators such as `Conciseness`.
+
+Each successful run saves a new Langfuse prompt version and appends a row to the
+repo-level `leaderboard.csv`, including the participant, prompt version,
+overall score, per-score columns, and Langfuse dataset run URL.
+
 ## Test
 
 ```powershell
