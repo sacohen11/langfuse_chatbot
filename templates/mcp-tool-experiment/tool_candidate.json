@@ -1,7 +1,0 @@
-{
-  "server": {
-    "name": "hosted-mcp-server",
-    "description": "Replace by running: python sync_tool_schema.py --fetch-schema"
-  },
-  "tools": []
-}

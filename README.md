@@ -1,192 +1,100 @@
-# Langfuse Chatbot
+# Langfuse Autoresearch Starter
 
-A small LangChain chatbot scaffold with:
+Small, bash-first templates for running Pi autoresearch against Langfuse prompts
+and hosted MCP tool schemas.
 
-- multi-turn conversations
-- MCP tools from external servers or your own HTTPS MCP servers
-- Langfuse tracing
-- evaluation of agentic behavior across multi-turn tool-call scenarios
-- deterministic tests that run without live model credentials
+## Bash On Windows
+
+Use one of these:
+
+- **Git Bash**: install [Git for Windows](https://git-scm.com/download/win), then open "Git Bash" in this repo. This is the easiest option for `bash autoresearch.sh`.
+- **WSL**: install Ubuntu with `wsl --install`, then run the same files from a Linux shell.
+
+This repo assumes Git Bash or WSL. From PowerShell you can still run:
+
+```powershell
+bash autoresearch.sh
+```
 
 ## Setup
 
-```powershell
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-copy .env.example .env
+source .venv/Scripts/activate  # Git Bash on Windows
+source .venv/bin/activate      # WSL/Linux
+pip install -r requirements.txt
+cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` for real model calls. Set `LANGFUSE_PUBLIC_KEY`,
-`LANGFUSE_SECRET_KEY`, and `LANGFUSE_BASE_URL` when you want traces and experiment
-results in Langfuse.
+Fill in `.env` with shared credentials:
 
-## Langfuse Tracing
-
-The chatbot uses the current Langfuse Python SDK and LangChain callback handler.
-Each chat turn creates a named `chat-response` root span with explicit user
-message input and assistant output. LangChain model/tool observations are nested
-under that span, while `session_id`, `user_id`, tags, and sanitized metadata are
-propagated so traces are easy to filter in Langfuse. CLI and evaluation runs
-flush queued events before exit.
-
-## Configure MCP Servers
-
-Edit `config.example.yaml` or create your own config file. HTTPS MCP servers are
-configured with an `https://.../mcp` URL:
-
-```yaml
-mcp:
-  servers:
-    my_server:
-      enabled: true
-      transport: http
-      url: https://my-server.example.com/mcp
-      headers:
-        Authorization: Bearer ${MY_MCP_TOKEN}
+```bash
+OPENAI_API_KEY=
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_BASE_URL=https://us.cloud.langfuse.com
 ```
 
-For private CAs or self-signed development certificates, configure trust at the
-Python/runtime level before running the client, for example `SSL_CERT_FILE` or
-`REQUESTS_CA_BUNDLE` pointing at your CA bundle.
+## Prompt Experiment
 
-## Chat
-
-```powershell
-langfuse-chatbot chat --config config.example.yaml
-```
-
-## Web UI
-
-Start the local console:
-
-```powershell
-python -m langfuse_chatbot.cli --config config.example.yaml web --port 8000
-```
-
-Open `http://127.0.0.1:8000`.
-
-The UI includes:
-
-- a multi-turn chatbot playground
-- session, latency, tool-call, and error metrics
-- Langfuse configuration status and host link
-- MCP server visibility
-- one-click evaluation using `evals/scenarios/tool_multiturn.json`
-
-## Evaluate
-
-Run deterministic local scoring over multi-turn scenarios:
-
-```powershell
-langfuse-chatbot eval --config config.example.yaml --scenarios evals/scenarios/tool_multiturn.json
-```
-
-Publish an experiment to Langfuse:
-
-```powershell
-langfuse-chatbot eval --config config.example.yaml --scenarios evals/scenarios/tool_multiturn.json --publish-langfuse
-```
-
-The evaluation harness scores more than the final answer. It tracks whether the
-agent used required tools, avoided forbidden tools, preserved context across
-turns, and satisfied expected answer checks.
-
-If you enable `mcp.tool_name_prefix`, LangChain MCP adapters namespace tool names
-with the server name. The evaluator accepts both exact tool names and namespaced
-suffixes, so `calculator` still matches `math_calculator`.
-
-The package also exposes `load_mcp_resources(...)` and `load_mcp_prompt(...)` in
-`langfuse_chatbot.mcp_client` for MCP servers that publish resources or prompt
-templates in addition to tools.
-
-## Prompt Autoresearch
-
-Pull a prompt from Langfuse into an autoresearch run folder:
-
-```powershell
-langfuse-chatbot --config config.example.yaml autoresearch pull support/triage `
-  --type chat `
-  --label production `
-  --context "Improve tool-use precision and keep all {{variables}} intact."
-```
-
-Run your autoresearch harness against the generated folder. The folder includes
-`task.json`, `source_prompt.json`, and either `prompt.txt` or
-`prompt.chat.json`. When the harness is done, write one of these files in the
-same run folder:
-
-- `optimized_prompt.json`
-- `autoresearch_result.json`
-- `candidates.json`
-
-Then save the winning candidate as a new Langfuse prompt version:
-
-```powershell
-langfuse-chatbot --config config.example.yaml autoresearch save autoresearch\20260602-120000-support-triage
-```
-
-Configure the local workspace in `.env` or YAML:
-
-```yaml
-autoresearch:
-  workspace_dir: autoresearch
-  candidate_count: 3
-```
-
-Each run writes `source_prompt.json`, `candidates.json`, `report.json`,
-`optimized_prompt.json`, and `saved_prompt.json` under `autoresearch/` as the
-workflow progresses. By default the optimized version gets the `autoresearch`
-label; repeat `--output-label` or use `--output-name` if you want a separate
-prompt.
-
-## Shared Prompt Experiment Template
-
-Use `templates/prompt-experiment` when someone wants to bring their own Langfuse
-prompt, dataset, and scoring rubric into an autoresearch loop.
-
-```powershell
-New-Item -ItemType Directory experiments -Force
-Copy-Item -Recurse templates\prompt-experiment experiments\my-experiment
-cd experiments\my-experiment
-notepad experiment_config.json
-python run_experiment.py --pull-prompt
+```bash
+mkdir -p experiments
+cp -r templates/prompt experiments/my-prompt
+cd experiments/my-prompt
+vim config.json
+python ../../run_experiment.py --pull config.json
 bash autoresearch.sh
 ```
 
-The template config asks for the participant name, experiment name, Langfuse
-prompt name, dataset name, model choices, and score dimensions. Scores can be
-custom LLM judge rubrics or managed Langfuse evaluators such as `Conciseness`.
+Then in Pi:
 
-Each successful run saves a new Langfuse prompt version and appends a row to the
-repo-level `leaderboard.csv`, including the participant, prompt version,
-overall score, per-score columns, and Langfuse dataset run URL.
+```text
+/autoresearch optimize prompt.txt for higher overall_score. Run bash autoresearch.sh as the benchmark.
+```
 
-## Hosted MCP Tool Experiment Template
+## Hosted MCP Tool Experiment
 
-Use `templates/mcp-tool-experiment` when the thing being optimized is a hosted
-MCP server/tool schema rather than a system prompt. This is meant for servers
-running in Rancher/Kubernetes or any other deployed environment.
+Use this for MCP servers deployed in Rancher/Kubernetes or anywhere else.
 
-```powershell
-Copy-Item -Recurse templates\mcp-tool-experiment experiments\my-mcp-tool
-cd experiments\my-mcp-tool
-notepad mcp_tool_config.json
-python sync_tool_schema.py --fetch-schema
+```bash
+mkdir -p experiments
+cp -r templates/mcp-tool experiments/my-tool
+cd experiments/my-tool
+vim config.json
+bash fetch_schema.sh
 bash autoresearch.sh
 ```
 
-`mcp_tool_config.json` captures the deployed MCP endpoint, deployment metadata
-such as cluster/namespace/workload, optional auth headers, and either a
-`schema_url` or `schema_file` for the tool JSON schema. The sync script pulls
-that JSON into `tool_candidate.json`, which Pi can then optimize. Successful
-benchmarks save attempted tool specs as Langfuse prompt versions and append
-hosted-MCP rows to `leaderboard.csv`.
+Then in Pi:
 
-## Test
-
-```powershell
-pytest
+```text
+/autoresearch optimize tool.json for higher overall_score. Run bash autoresearch.sh as the benchmark.
 ```
 
-The tests use fake chatbots and do not call an LLM, MCP server, or Langfuse.
+`templates/mcp-tool/config.json` contains:
+
+- deployed MCP URL
+- schema URL or local schema file
+- Rancher/Kubernetes metadata: cluster, namespace, workload
+- prompt name in Langfuse where attempts are saved
+- dataset name in Langfuse
+- scores/rubrics
+
+## Leaderboard
+
+Every successful run appends to `leaderboard.csv` at the repo root.
+
+The runner prints Pi-readable metric lines:
+
+```text
+METRIC overall_score=0.9123
+METRIC task_success=0.9000
+```
+
+## Files That Matter
+
+- `run_experiment.py`: one simple runner for prompt and MCP tool experiments.
+- `fetch_schema.py`: pulls a hosted MCP JSON schema into `tool.json`.
+- `templates/prompt`: copyable prompt experiment.
+- `templates/mcp-tool`: copyable hosted MCP tool experiment.
+- `leaderboard.csv`: shared leaderboard.

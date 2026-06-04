@@ -1,0 +1,35 @@
+{
+  "server": {
+    "name": "weather-mcp",
+    "url": "https://your-mcp-host.example.com/mcp"
+  },
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Get the current weather for a city.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "City and region, for example Boston, MA."
+          }
+        },
+        "required": [
+          "city"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "temperature_f": {
+            "type": "number"
+          },
+          "conditions": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}
