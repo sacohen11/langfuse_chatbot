@@ -1,0 +1,43 @@
+{
+  "kind": "mcp_tool",
+  "participant": "your-name",
+  "experiment_name": "weather-tool-description",
+  "prompt_name": "mcp-weather-tool-spec",
+  "dataset_name": "weather-tool-examples",
+  "candidate_file": "tool.json",
+  "task_model": "gpt-5.4",
+  "judge_model": "gpt-4.1-mini",
+  "max_completion_tokens": 250,
+  "server": {
+    "name": "weather-mcp",
+    "url": "https://your-mcp-host.example.com/mcp",
+    "schema_url": "https://your-mcp-host.example.com/.well-known/mcp-schema.json",
+    "schema_file": "",
+    "headers": {
+      "Authorization": "Bearer ${MCP_SCHEMA_TOKEN:-}"
+    },
+    "rancher": {
+      "cluster": "cluster-name",
+      "namespace": "namespace-name",
+      "workload": "deployment-name"
+    }
+  },
+  "scores": [
+    {
+      "name": "tool_selection",
+      "rubric": "Would the model choose the correct tool for the user request?"
+    },
+    {
+      "name": "parameter_quality",
+      "rubric": "Are input parameters clear, minimal, and hard to misuse?"
+    },
+    {
+      "name": "output_quality",
+      "rubric": "Is the output schema clear enough for a model to interpret correctly?"
+    },
+    {
+      "name": "conciseness",
+      "rubric": "Is the tool description concise while keeping all needed meaning?"
+    }
+  ]
+}

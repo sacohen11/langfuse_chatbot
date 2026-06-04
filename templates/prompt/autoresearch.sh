@@ -13,6 +13,11 @@ if [ ! -f "$ROOT/run_experiment.py" ]; then
   exit 1
 fi
 
-python "$ROOT/run_experiment.py" "$PWD/config.json" > .autoresearch-last-output.txt
+CONFIG="$PWD/benchmark_config.json"
+if [ ! -f "$CONFIG" ]; then
+  CONFIG="$PWD/config.json"
+fi
+
+python "$ROOT/run_experiment.py" "$CONFIG" > .autoresearch-last-output.txt
 cat .autoresearch-last-output.txt
 grep '^METRIC ' .autoresearch-last-output.txt > .autoresearch-last-metrics.txt || true

@@ -18,6 +18,8 @@ webserver.*.log
 
 .autoresearch-last-*.txt
 .autoresearch-last-*.json
+autoresearch.jsonl
+autoresearch-crash-*.jsonl
 
 dist/
 build/

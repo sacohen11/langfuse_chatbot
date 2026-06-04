@@ -1,0 +1,81 @@
+{
+  "server": {
+    "name": "weather-mcp",
+    "url": "https://weather-mcp.example.com/mcp"
+  },
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Get current or forecast weather for a resolved location. Use for weather, temperature, rain, conditions, or clothing-planning questions; ask a clarifying question when the location is ambiguous.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City/region to query, with state or country when needed, e.g. Boston, MA."
+          },
+          "time_window": {
+            "type": "string",
+            "description": "Optional time such as now, today, tomorrow morning, or this weekend."
+          },
+          "units": {
+            "type": "string",
+            "enum": [
+              "metric",
+              "imperial"
+            ],
+            "description": "metric for Celsius/kmh, imperial for Fahrenheit/mph."
+          }
+        },
+        "required": [
+          "location"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "resolved_location": {
+            "type": "string",
+            "description": "Location actually used by the weather provider."
+          },
+          "temperature": {
+            "type": "number",
+            "description": "Temperature in the requested units."
+          },
+          "units": {
+            "type": "string",
+            "description": "Units used for numeric weather values."
+          },
+          "conditions": {
+            "type": "string",
+            "description": "Brief condition summary."
+          },
+          "observed_at": {
+            "type": "string",
+            "description": "ISO timestamp for current weather freshness."
+          },
+          "forecast_for": {
+            "type": "string",
+            "description": "Time window covered when this is a forecast."
+          },
+          "precipitation_chance_pct": {
+            "type": "number",
+            "description": "Optional precipitation probability."
+          },
+          "error": {
+            "type": "string",
+            "description": "Optional problem such as ambiguous location or unavailable data."
+          }
+        },
+        "required": [
+          "resolved_location",
+          "temperature",
+          "units",
+          "conditions"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

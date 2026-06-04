@@ -10,10 +10,11 @@ Use one of these:
 - **Git Bash**: install [Git for Windows](https://git-scm.com/download/win), then open "Git Bash" in this repo. This is the easiest option for `bash autoresearch.sh`.
 - **WSL**: install Ubuntu with `wsl --install`, then run the same files from a Linux shell.
 
-This repo assumes Git Bash or WSL. From PowerShell you can still run:
+This repo assumes Git Bash or WSL. On this machine, `bash` in PowerShell points
+to WSL first. To force Git Bash from PowerShell, run:
 
 ```powershell
-bash autoresearch.sh
+& "C:\Program Files\Git\bin\bash.exe" autoresearch.sh
 ```
 
 ## Setup

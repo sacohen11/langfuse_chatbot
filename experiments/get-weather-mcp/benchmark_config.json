@@ -1,0 +1,39 @@
+{
+  "kind": "mcp_tool",
+  "participant": "sam-c",
+  "experiment_name": "get-weather-mcp-schema",
+  "prompt_name": "mcp/get_weather-tool-spec",
+  "dataset_name": "mcp/get_weather-tool-examples",
+  "candidate_file": "tool.json",
+  "task_model": "gpt-5.4-mini",
+  "judge_model": "gpt-4.1-mini",
+  "max_completion_tokens": 250,
+  "server": {
+    "name": "weather-mcp",
+    "url": "https://weather-mcp.example.com/mcp",
+    "schema_file": "tool.json",
+    "rancher": {
+      "cluster": "example-cluster",
+      "namespace": "weather",
+      "workload": "weather-mcp"
+    }
+  },
+  "scores": [
+    {
+      "name": "tool_selection",
+      "rubric": "Score 1.0 when the tool description makes it obvious to call get_weather for current weather, forecasts, temperatures, precipitation, or conditions, and obvious not to call it for unrelated questions. Penalize vague descriptions or missing disambiguation guidance."
+    },
+    {
+      "name": "parameter_quality",
+      "rubric": "Score 1.0 when the input schema is minimal, clearly named, typed, required where necessary, includes useful descriptions/examples, supports location and units/time-window needs, and avoids redundant or confusing parameters."
+    },
+    {
+      "name": "output_quality",
+      "rubric": "Score 1.0 when the output schema clearly tells the model how to interpret weather results, including units, timestamp/freshness, resolved location, conditions, and uncertainty or error fields. Penalize underspecified numeric or string fields."
+    },
+    {
+      "name": "conciseness",
+      "rubric": "Score 1.0 when the description and schemas are compact and specific. Penalize generic prose, repeated wording, unnecessary fields, or descriptions that are much longer than needed."
+    }
+  ]
+}

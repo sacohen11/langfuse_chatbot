@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument("config", help="Path to MCP config.json")
     args = parser.parse_args()
 
-    load_dotenv(ROOT / ".env")
+    load_dotenv(ROOT / ".env", encoding="utf-8-sig")
     config_path = Path(args.config).resolve()
     config = expand(json.loads(config_path.read_text(encoding="utf-8-sig")))
     server = config["server"]
