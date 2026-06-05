@@ -34,6 +34,8 @@ OPENAI_API_KEY=
 LANGFUSE_PUBLIC_KEY=
 LANGFUSE_SECRET_KEY=
 LANGFUSE_BASE_URL=https://us.cloud.langfuse.com
+LANGGRAPH_EVAL_URL=http://localhost:8080/internal/eval/run
+LANGGRAPH_EVAL_TIMEOUT=120
 ```
 
 ## Prompt Experiment
@@ -81,6 +83,39 @@ Then in Pi:
 - dataset name in Langfuse
 - scores/rubrics
 
+## LangGraph MCP E2E Experiment
+
+Use this when the real LangGraph app is deployed elsewhere and this repo should
+act only as the external eval harness. First port-forward the service:
+
+```bash
+kubectl -n <namespace> port-forward svc/<langgraph-service-name> 8080:80
+```
+
+Then run the experiment locally:
+
+```bash
+mkdir -p experiments
+cp -r templates/langgraph-mcp-e2e experiments/main-agent-e2e
+cd experiments/main-agent-e2e
+vim config.json
+vim tool_suite.json
+bash autoresearch.sh
+```
+
+Then in Pi:
+
+```text
+/autoresearch optimize tool_suite.json for higher overall_score. Run bash autoresearch.sh as the benchmark. You may edit only tool_suite.json.
+```
+
+The deployed LangGraph app should expose `POST /internal/eval/run`, accept the
+candidate tool suite for one request, and return the Langfuse `trace_id` plus a
+compact structured summary of the run. The full tool trace can stay in
+Langfuse; this repo uses `trace_id` to attach scores to that trace and uses the
+compact response fields for local scoring. This repo owns scoring, Langfuse
+score logging, `latest_results.json`, and Pi-readable `METRIC` lines.
+
 ## Leaderboard
 
 Every successful run appends to `leaderboard.csv` at the repo root.
@@ -98,4 +133,5 @@ METRIC task_success=0.9000
 - `fetch_schema.py`: pulls a hosted MCP JSON schema into `tool.json`.
 - `templates/prompt`: copyable prompt experiment.
 - `templates/mcp-tool`: copyable hosted MCP tool experiment.
+- `templates/langgraph-mcp-e2e`: copyable deployed LangGraph E2E experiment.
 - `leaderboard.csv`: shared leaderboard.

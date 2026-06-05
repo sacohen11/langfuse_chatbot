@@ -1,0 +1,20 @@
+{
+  "kind": "langgraph_mcp_e2e",
+  "participant": "sam",
+  "experiment_name": "main-agent-tool-suite-autoresearch",
+  "dataset_name": "mcp_agent_e2e_regression",
+  "candidate_file": "tool_suite.json",
+  "primary_metric": "overall_score",
+  "weights": {
+    "tool_recall": 0.3,
+    "args_quality": 0.25,
+    "tool_order_correct": 0.1,
+    "mcp_execution_success": 0.2,
+    "answer_contains_expected": 0.1,
+    "no_forbidden_tool_calls": 0.05
+  },
+  "guardrails": {
+    "min_mcp_execution_success": 0.95,
+    "max_forbidden_tool_call_count": 0
+  }
+}

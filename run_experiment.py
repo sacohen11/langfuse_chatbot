@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import hashlib
 import json
@@ -13,6 +14,8 @@ from dotenv import load_dotenv
 from langfuse import Evaluation, Langfuse
 from langfuse.openai import OpenAI
 
+from evals.langgraph_mcp_e2e import run_langgraph_mcp_e2e
+
 
 ROOT = Path(__file__).resolve().parent
 
@@ -24,14 +27,14 @@ def main() -> None:
     config_path = Path(args.config).resolve()
     workdir = config_path.parent
     config = json.loads(config_path.read_text(encoding="utf-8-sig"))
-    langfuse = Langfuse(
-        public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-        secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-        base_url=os.environ["LANGFUSE_BASE_URL"],
-    )
+    langfuse = make_langfuse()
 
     if args.pull:
         pull_prompt(langfuse, config, workdir)
+        return
+
+    if config["kind"] == "langgraph_mcp_e2e":
+        asyncio.run(run_langgraph_mcp_e2e(config, workdir, langfuse, update_leaderboard))
         return
 
     dataset = langfuse.get_dataset(config["dataset_name"])
@@ -71,6 +74,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pull", action="store_true")
     parser.add_argument("--no-save", action="store_true")
     return parser.parse_args()
+
+
+def make_langfuse() -> Langfuse:
+    return Langfuse(
+        public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+        secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+        base_url=os.environ.get("LANGFUSE_BASE_URL") or os.environ.get("LANGFUSE_HOST"),
+    )
 
 
 def pull_prompt(langfuse: Langfuse, config: dict, workdir: Path) -> None:
@@ -208,7 +219,7 @@ def update_leaderboard(config: dict, scores: dict, version: str, run_url: str) -
         "participant": config["participant"],
         "experiment_name": config["experiment_name"],
         "kind": config["kind"],
-        "prompt_name": config["prompt_name"],
+        "prompt_name": config.get("prompt_name", config.get("candidate_file", config["experiment_name"])),
         "prompt_version": version,
         "overall_score": f"{scores['overall_score']:.6f}",
         "dataset_name": config["dataset_name"],

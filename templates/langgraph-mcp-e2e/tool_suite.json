@@ -1,0 +1,32 @@
+{
+  "system_prompt": "You are a tool-using assistant. Use the available tools only when they help answer the user's request. Prefer the fewest correct tool calls, pass precise arguments, and explain any tool failures clearly.",
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "github__search_code",
+        "description": "Search source code in GitHub repositories. Use this for implementation details, functions, files, classes, APIs, config files, error text, or code references. Do not use this for tickets, design docs, emails, or calendar events.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Code search query. Include repo, file name, function name, class name, framework, or error text when available."
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "tool_routing": {
+    "github__search_code": {
+      "mcp_server": "github-prod",
+      "mcp_tool": "search_code"
+    }
+  }
+}
