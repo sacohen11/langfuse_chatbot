@@ -3,6 +3,8 @@
   "participant": "your-name",
   "experiment_name": "weather-tool-description",
   "prompt_name": "mcp-weather-tool-spec",
+  "prompt_type": "text",
+  "prompt_label": "production",
   "dataset_name": "weather-tool-examples",
   "candidate_file": "tool.json",
   "task_model": "gpt-5.4",

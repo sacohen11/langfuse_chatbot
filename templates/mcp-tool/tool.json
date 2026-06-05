@@ -1,4 +1,5 @@
 {
+  "system_prompt": "Decide whether to call a hosted MCP tool. Return JSON only with should_call_tool, tool_name, arguments, expected_result_usage, and rationale.",
   "server": {
     "name": "weather-mcp",
     "url": "https://your-mcp-host.example.com/mcp"

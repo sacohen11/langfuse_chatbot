@@ -85,21 +85,54 @@ def make_langfuse() -> Langfuse:
 
 
 def pull_prompt(langfuse: Langfuse, config: dict, workdir: Path) -> None:
-    if config["kind"] != "prompt":
-        raise SystemExit("--pull only applies to prompt experiments")
-
     prompt = langfuse.get_prompt(
         config["prompt_name"],
-        type=config.get("prompt_type", "chat"),
+        type=config.get("prompt_type", "chat" if config["kind"] == "prompt" else "text"),
         label=config.get("prompt_label", "production"),
         cache_ttl_seconds=0,
     )
-    raw = prompt.prompt
-    if not isinstance(raw, str):
-        raw = next((m.get("content", "") for m in raw if m.get("role") == "system"), json.dumps(raw))
-
-    (workdir / config["candidate_file"]).write_text(str(raw).strip() + "\n", encoding="utf-8")
+    prompt_text = extract_prompt_text(prompt.prompt)
+    candidate_path = workdir / config["candidate_file"]
+    if config["kind"] == "prompt":
+        candidate_path.write_text(prompt_text + "\n", encoding="utf-8")
+    elif config["kind"] in {"mcp_tool", "langgraph_mcp_e2e"}:
+        candidate = build_tool_candidate(prompt_text, getattr(prompt, "config", None))
+        candidate_path.write_text(json.dumps(candidate, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    else:
+        raise SystemExit(f"--pull does not support experiment kind: {config['kind']}")
     print(f"Pulled {config['prompt_name']} into {config['candidate_file']}")
+
+
+def extract_prompt_text(raw_prompt) -> str:
+    if isinstance(raw_prompt, str):
+        return raw_prompt.strip()
+    return str(
+        next(
+            (m.get("content", "") for m in raw_prompt if isinstance(m, dict) and m.get("role") == "system"),
+            json.dumps(raw_prompt),
+        )
+    ).strip()
+
+
+def build_tool_candidate(prompt_text: str, prompt_config) -> dict:
+    config = prompt_config if isinstance(prompt_config, dict) else {}
+    tool_config = config.get("tool_suite") or config.get("candidate_config") or pick_tool_config(config)
+    if isinstance(tool_config, dict) and tool_config:
+        return {"system_prompt": prompt_text, **tool_config}
+
+    try:
+        parsed = json.loads(prompt_text)
+    except json.JSONDecodeError:
+        return {"system_prompt": prompt_text}
+    return parsed if isinstance(parsed, dict) else {"system_prompt": prompt_text}
+
+
+def pick_tool_config(config: dict) -> dict:
+    return {
+        key: config[key]
+        for key in ("server", "tool_choice", "tools", "tool_routing")
+        if key in config
+    }
 
 
 def make_task(openai: OpenAI, config: dict, candidate: str):
@@ -114,19 +147,24 @@ def make_task(openai: OpenAI, config: dict, candidate: str):
 
     if config["kind"] == "mcp_tool":
         tool_spec = json.loads(candidate)
+        system_prompt = tool_spec.get(
+            "system_prompt",
+            "Decide whether to call a hosted MCP tool. Return JSON only.",
+        )
+        tool_payload = {key: value for key, value in tool_spec.items() if key != "system_prompt"}
 
         def tool_task(item):
             data = item.input if isinstance(item.input, dict) else {"user_request": item.input}
             payload = {
                 "server": config.get("server", {}),
-                "tool_spec": tool_spec,
+                "tool_spec": tool_payload,
                 "user_request": data["user_request"],
                 "available_context": data.get("available_context", {}),
             }
             return call_openai(openai, config["task_model"], [
                 {
                     "role": "system",
-                    "content": "Decide whether to call a hosted MCP tool. Return JSON only.",
+                    "content": system_prompt,
                 },
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ], config.get("max_completion_tokens", 300), json_mode=True)
@@ -188,11 +226,30 @@ def evaluation_values(item_results, score_names: list[str]) -> list[float]:
 def save_prompt_version(langfuse: Langfuse, config: dict, artifact_type: str, text: str, scores: dict) -> str:
     prompt_type = config.get("prompt_type", "text")
     prompt_body = text
+    prompt_config = {
+        "participant": config["participant"],
+        "experiment_name": config["experiment_name"],
+        "artifact_type": artifact_type,
+        "overall_score": scores["overall_score"],
+        "dimension_scores": scores["dimensions"],
+        "prompt_hash": hashlib.sha256(text.encode("utf-8")).hexdigest()[:12],
+    }
     if config["kind"] == "prompt" and prompt_type == "chat":
         prompt_body = [
             {"role": "system", "content": text},
             {"role": "user", "content": config.get("user_template", "{{input}}")},
         ]
+    elif config["kind"] in {"mcp_tool", "langgraph_mcp_e2e"}:
+        try:
+            candidate = json.loads(text)
+        except json.JSONDecodeError:
+            candidate = {}
+        if isinstance(candidate, dict) and "system_prompt" in candidate:
+            prompt_body = str(candidate["system_prompt"])
+            prompt_config = {
+                **{key: value for key, value in candidate.items() if key != "system_prompt"},
+                "_autoresearch": prompt_config,
+            }
 
     prompt = langfuse.create_prompt(
         name=config["prompt_name"],
@@ -200,14 +257,7 @@ def save_prompt_version(langfuse: Langfuse, config: dict, artifact_type: str, te
         prompt=prompt_body,
         labels=[],
         tags=["autoresearch", artifact_type],
-        config={
-            "participant": config["participant"],
-            "experiment_name": config["experiment_name"],
-            "artifact_type": artifact_type,
-            "overall_score": scores["overall_score"],
-            "dimension_scores": scores["dimensions"],
-            "prompt_hash": hashlib.sha256(text.encode("utf-8")).hexdigest()[:12],
-        },
+        config=prompt_config,
         commit_message=f"{config['experiment_name']} score={scores['overall_score']:.4f}",
     )
     return str(getattr(prompt, "version", ""))

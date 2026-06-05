@@ -23,10 +23,5 @@
       }
     }
   ],
-  "tool_routing": {
-    "github__search_code": {
-      "mcp_server": "github-prod",
-      "mcp_tool": "search_code"
-    }
-  }
+  "tool_routing": {}
 }

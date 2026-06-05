@@ -64,7 +64,8 @@ mkdir -p experiments
 cp -r templates/mcp-tool experiments/my-tool
 cd experiments/my-tool
 vim config.json
-bash fetch_schema.sh
+python ../../run_experiment.py config.json --pull  # from Langfuse prompt/config
+# or: bash fetch_schema.sh                         # from a hosted schema URL
 bash autoresearch.sh
 ```
 
@@ -99,7 +100,7 @@ mkdir -p experiments
 cp -r templates/langgraph-mcp-e2e experiments/main-agent-e2e
 cd experiments/main-agent-e2e
 vim config.json
-vim tool_suite.json
+python ../../run_experiment.py config.json --pull
 bash autoresearch.sh
 ```
 
@@ -108,6 +109,17 @@ Then in Pi:
 ```text
 /autoresearch optimize tool_suite.json for higher overall_score. Run bash autoresearch.sh as the benchmark. You may edit only tool_suite.json.
 ```
+
+For MCP-tool and LangGraph E2E experiments, Langfuse can be the source of truth
+for the starting candidate. Store the system prompt as the Langfuse prompt text
+and store `tools`, `tool_choice`, `tool_routing`, and related tool config in the
+Langfuse prompt config. The `--pull` command writes those pieces into the local
+editable JSON file before Pi starts.
+
+Missing `tool_choice` or `tool_routing` is safe for the local harness: it
+defaults to `"auto"` and `{}`. Do not use placeholder routing in real E2E evals;
+the deployed LangGraph app should either infer routing itself or receive real
+routing values from the Langfuse prompt config.
 
 The deployed LangGraph app should expose `POST /internal/eval/run`, accept the
 candidate tool suite for one request, and return the Langfuse `trace_id` plus a
